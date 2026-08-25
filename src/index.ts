@@ -1,19 +1,16 @@
 /**
- * @h1deya/langchain-google-genai-ex
+ * @h1deya/langchain-google-ex
  * 
- * Drop-in replacement for ChatGoogleGenerativeAI that automatically fixes
+ * Drop-in replacement for ChatGoogle that automatically fixes
  * schema compatibility issues with MCP tools and Google Gemini.
  * 
  * Simply replace:
- *   import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+ *   import { ChatGoogle } from '@langchain/google/node';
  * With:
- *   import { ChatGoogleGenerativeAIEx } from '@h1deya/langchain-google-genai-ex';
+ *   import { ChatGoogleEx } from '@h1deya/langchain-google-ex';
  * 
  * All MCP tool schemas are automatically transformed for Gemini compatibility.
  */
 
 // Chat Models - Extended classes with automatic schema transformation
-export { ChatGoogleGenerativeAIEx } from "./ChatGoogleGenerativeAIEx.js";
-
-// // Re-export useful types from the base package
-// export type { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+export { ChatGoogleEx } from "./ChatGoogleEx.js";

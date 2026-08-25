@@ -1,145 +1,79 @@
-# Fix Gemini "400 Error" with LangChain.js + MCP [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/hideya/langchain-google-genai-ex/blob/main/LICENSE) [![npm version](https://img.shields.io/npm/v/@h1deya/langchain-google-genai-ex.svg)](https://www.npmjs.com/package/@h1deya/langchain-google-genai-ex)
+# Fix Gemini "400 Error" with LangChain.js + MCP [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/hideya/langchain-google-ex/blob/main/LICENSE) [![npm version](https://img.shields.io/npm/v/@h1deya/langchain-google-ex.svg)](https://www.npmjs.com/package/@h1deya/langchain-google-ex)
 
+### Drop-in replacement that unblocks MCP tool schemas in Gemini
 
-### Drop-in replacement that unblocks MCP tool schemas in Gemini
+This library provides **a drop-in replacement for `ChatGoogle` from `@langchain/google`**
+that fixes Gemini 400 Bad Request errors when using LangChain.js with MCP servers.
+It automatically transforms JSON schemas with unsupported constructs into Gemini-compatible
+function-calling schemas at tool binding time.
 
-This library provides **a drop-in replacement for `@langchain/google-genai`
-that fixes Gemini's 400 Bad Request errors** when using LangChain.js with MCP servers.
-Automatically transforms schemas with unsupported constructs (e.g., anyOf, allOf) into Gemini-compatible JSON.
+The schema error usually looks like:
 
-The schema error usually looks like:  
-`[GoogleGenerativeAI Error]: ... [400 Bad Request] Invalid JSON payload received.`
+```text
+Invalid JSON payload received. Unknown name "exclusiveMaximum" ...
+```
 
-This error typically occurs when using `MultiServerMCPClient()`.  
-This library prevents its cascading failures where one complex server breaks the entire MCP integration.
+or:
+
+```text
+Invalid JSON payload received. Unknown name "anyOf" ...
+```
+
+This commonly appears when tools from `MultiServerMCPClient` include schemas that are valid
+JSON Schema but outside Gemini's supported OpenAPI-like subset.
 
 ## How to Use This Library
-
-### Drop-in Replacement
 
 Replace:
 
 ```typescript
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-...
-const llm = new ChatGoogleGenerativeAI({ ... });
+import { ChatGoogle } from "@langchain/google/node";
+
+const model = new ChatGoogle({ model: "gemini-2.5-flash" });
 ```
 
 with:
 
 ```typescript
-import { ChatGoogleGenerativeAIEx } from '@h1deya/langchain-google-genai-ex';
-...
-const llm = new ChatGoogleGenerativeAIEx({ ... });
+import { ChatGoogleEx } from "@h1deya/langchain-google-ex";
+
+const model = new ChatGoogleEx({ model: "gemini-2.5-flash" });
 ```
 
-**That's it!** No configuration, no additional steps.
+That's it. Keep passing the original MCP tools to LangChain:
 
-**This automatically fixes:**
-- **"Invalid JSON payload"** errors from complex MCP schemas, including:
-  - "anyOf must be the only field set"
-  - "Unknown name 'exclusiveMaximum'"
-  - etc.
-- Cascading failures where one complex server breaks entire MCP integration
-- Works with Gemini 2.0, 2.5 and 3 preview
+```typescript
+const mcpTools = await client.getTools();
+const agent = createAgent({ model, tools: mcpTools });
+```
 
-You can easily switch back to the original `ChatGoogleGenerativeAI`
-when its schema handling improves,
-or when the MCP server's schema improves to meet Gemini's strict requirements.
-
-A simple usage example, which is ready to clone and run, can be found
-[here](https://github.com/hideya/langchain-google-genai-ex-usage).
-
-> This library is intentionally focused on `@langchain/google-genai` users who need a
-> drop-in replacement for `ChatGoogleGenerativeAI`. For new Google Gemini integrations,
-> LangChain recommends the newer `@langchain/google` package.
->
-> This library addresses compatibility issues present as of February 6, 2026, with LangChain.js (langchain) v1.2.18 and @langchain/google-genai v2.1.15.
-> Compatibility was re-checked on August 25, 2026, with `langchain` v1.5.10,
-> `@langchain/google-genai` v2.3.0, and `@langchain/mcp-adapters` v1.1.4.
-
-## Table of Contents
-
-Below we'll explain what and how this library works in detail:
-
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)  
-- [The Problem You're Probably Having](#the-problem-youre-probably-having)
-- [Complete Usage Example](#complete-usage-example)
-- [Debugging: Verbose Logging](#debugging-verbose-logging)
-- [Features](#features)
-- [API Reference](https://hideya.github.io//langchain-google-genai-ex/classes/ChatGoogleGenerativeAIEx.html)
+`ChatGoogleEx` transforms the tool schemas inside `bindTools()`, preserving the original
+LangChain tool objects and their execution behavior.
 
 ## Prerequisites
 
-Before installing, make sure you have:
+- Node.js 20+
+- Google API key configured for `@langchain/google`
+- `@langchain/google`, `langchain`, and `@langchain/mcp-adapters`
+- MCP servers you want to use
 
-- **Node.js 18+** - Required for modern JavaScript features
-- **Google API Key** - Get yours at [Google AI Studio](https://ai.google.dev/gemini-api/docs/api-key)
-- **LangChain.js** - This package works with [`@langchain/google-genai`](https://www.npmjs.com/package/@langchain/google-genai),
-  [`langchain`](https://www.npmjs.com/package/langchain), and
-  [`@langchain/mcp-adapters`](https://www.npmjs.com/package/@langchain/mcp-adapters)
-- **MCP Servers** - Access to the MCP servers you want to use
-
-Tested with `langchain@1.5.10`, `@langchain/google-genai@2.3.0`, and
+Tested with `@langchain/google@0.2.3`, `langchain@1.5.10`, and
 `@langchain/mcp-adapters@1.1.4`.
 
 ## Installation
 
 ```bash
-npm i @h1deya/langchain-google-genai-ex @langchain/google-genai langchain @langchain/mcp-adapters
+npm i @h1deya/langchain-google-ex @langchain/google langchain @langchain/mcp-adapters
 ```
-
-## The Problem You're Probably Having
-
-If you've ever tried using **Google Gemini** together with **LangChain.js** and **MCP servers with complex schemas**, you may have run into this error:
-
-```
-[GoogleGenerativeAI Error]: Error fetching from 
-https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent: 
-[400 Bad Request] Invalid JSON payload received. 
-Unknown name "anyOf" at 'tools[0].function_declarations[8]...
-```
-
-This typically occurs when you configure multiple MCP servers using `MultiServerMCPClient`,
-especially when some of the servers have complex schemas.
-
-If you searched for `GoogleGenerativeAIFetchError: [GoogleGenerativeAI Error] 400 Bad Request`,
-the following sections explain the cause and how to workaround it when using LangChain.
-
-> The MCP servers I have encountered so far that have failed are:
-> - `@notionhq/notion-mcp-server@1.9.0` (run with `npx`)
-> - `airtable-mcp-server@1.6.1` (run with `npx`)
-> - `mcp-server-fetch==2025.4.7` (run with `uvx`)
-
-### Why This Happens
-
-- [**Gemini's schema requirements for function calling are very strict**](https://ai.google.dev/api/caching#Schema).
-- MCP servers define their tools using flexible JSON schemas, and LLMs invoke MCP tools via function calling.
-  Most LLMs accept these schemas just fine.
-- However, Gemini API rejects MCP tool schemas if they contain fields it doesn't expect (e.g., use of `anyOf`).
-- The result is a **400 Bad Request** - even though the same MCP server works fine with OpenAI, Anthropic, etc.
-- Google Vertex AI that supports API endpoints with relaxed schema requirements but it requires GCP setup.
-- Google provides a fix in its new Gemini SDK ([`@google/genai`](https://github.com/googleapis/js-genai?tab=readme-ov-file#model-context-protocol-mcp-support-experimental)),
-  but LangChain.js users cannot leverage it due to architectural incompatibility.
-
-For many developers, this can make Gemini difficult to use with LangChain.js and some MCP servers.
-Even if only one incompatible MCP server is included in the MCP definitions passed to `MultiServerMCPClient`,
-all subsequent MCP usage starts failing with the 400 Bad Request error.
-
-**This library handles all these schema incompatibilities through schema transformation, 
-converting complex MCP tool schemas into Gemini-friendly formats**,
-so you can focus on building instead of debugging schema errors.
 
 ## Complete Usage Example
 
 ```typescript
-// import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { ChatGoogleGenerativeAIEx } from "@h1deya/langchain-google-genai-ex";
+import "dotenv/config";
+import { ChatGoogleEx } from "@h1deya/langchain-google-ex";
 import { createAgent } from "langchain";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 
-// The following Fetch MCP server causes "400 Bad Request"
 const client = new MultiServerMCPClient({
   throwOnLoadError: true,
   useStandardContentBlocks: true,
@@ -147,20 +81,16 @@ const client = new MultiServerMCPClient({
     fetch: {
       transport: "stdio",
       command: "uvx",
-      args: ["mcp-server-fetch==2025.4.7"],
+      args: ["--with", "mcp<2", "mcp-server-fetch==2025.4.7"],
     },
   },
 });
 
 try {
   const mcpTools = await client.getTools();
-
-  // const model = new ChatGoogleGenerativeAI({ model: "gemini-2.5-flash" });
-  const model = new ChatGoogleGenerativeAIEx({ model: "gemini-2.5-flash" });
-
+  const model = new ChatGoogleEx({ model: "gemini-2.5-flash" });
   const agent = createAgent({ model, tools: mcpTools });
 
-  // This works! No more schema errors
   const result = await agent.invoke({
     messages: [
       {
@@ -176,88 +106,70 @@ try {
 }
 ```
 
-A simple usage example, which is ready to clone and run, can be found
-[here](https://github.com/hideya/langchain-google-genai-ex-usage).
+## Why This Happens
 
-**Key Benefits:**
-- **Simple to use** - Just replace the import and the classname
-- **Preserves all functionality** - Streaming, system instructions, etc.
-- **No breaking changes** - Drop-in replacement for ChatGoogleGenerativeAI
+Gemini's function-calling schema format accepts only a subset of JSON Schema. Some MCP
+servers publish schemas containing fields such as `exclusiveMinimum`, `exclusiveMaximum`,
+`additionalProperties`, or complex `anyOf` / `oneOf` / `allOf` combinations. Those schemas
+can be rejected before any tool call runs.
+
+`@langchain/google` already performs some schema normalization, but current versions still
+pass through schema keywords that Gemini rejects in MCP tool definitions. `ChatGoogleEx`
+adds a compatibility layer for those cases.
+
+MCP servers that have shown this kind of issue include:
+
+- `airtable-mcp-server`
+- `mcp-server-fetch==2025.4.7`
+- `@notionhq/notion-mcp-server`
 
 ## Debugging: Verbose Logging
 
-Want to see exactly what schema transformations are happening? Set the environment variable to get detailed logs:
+Set this environment variable to see schema transformations:
 
 ```bash
-LANGCHAIN_GOOGLE_GENAI_EX_VERBOSE=true
+LANGCHAIN_GOOGLE_EX_VERBOSE=true
 ```
 
-**Example output:**
-```
-🔧 Transforming 3 MCP tool(s) for Gemini compatibility...
-  ✅ get-alerts: No transformation needed (simple schema)
-  ✅ get-forecast: No transformation needed (simple schema)
-  🔄 fetch: 2 exclusive bound(s) converted, 1 unsupported format(s) removed (uri)
-📊 Summary: 1/3 tool(s) required schema transformation
-```
+Example output:
 
-**When to use verbose logging:**
-- **Debugging**: When tools aren't working as expected
-- **Understanding**: See what complex schemas are being simplified
-- **Verification**: Confirm that transformations are happening correctly
-- **Development**: Monitor which MCP servers need schema fixes
-
-The verbose output helps you understand:
-- Which tools have complex schemas that need transformation
-- What specific changes are being made (anyOf fixes, type conversions, etc.)
-- How many tools in your setup require compatibility fixes
+```text
+Transforming 3 MCP tool(s) for Gemini compatibility...
+fetch: 2 exclusive bound(s) converted, 1 unsupported format(s) removed
+Summary: 1/3 tool(s) required schema transformation
+```
 
 ## Features
 
-### All Original ChatGoogleGenerativeAI Features
-`ChatGoogleGenerativeAIEx` extends the original class, so you get everything:
-- Streaming, function calling, system instructions
-- All model parameters and configurations
-- Full LangChain.js integration
+- Drop-in replacement for `ChatGoogle`
+- Automatic MCP tool schema transformation at `bindTools()` time
+- Preserves original LangChain tool objects
+- Converts type arrays such as `["string", "null"]` to nullable schemas
+- Filters invalid `required` fields
+- Removes or converts unsupported JSON Schema keywords
+- Resolves local `$ref`, `$defs`, and `definitions` where possible
 
-### Comprehensive Schema Transformation
-- **Systematic conversion** of `allOf`/`anyOf`/`oneOf` to equivalent object structures
-- **Reference resolution** - handles `$ref` and `$defs` by flattening definitions
-- **Type normalization** - converts type arrays `["string", "null"]` to `nullable` properties
-- **Property validation** - filters `required` fields that don't exist in `properties`
-- **Format compatibility** - removes unsupported JSON Schema formats and keywords
-- **Nested structure handling** - recursively processes complex object hierarchies
+## Known Limitations
 
-### Known Limitations
-- **Unresolved references:** If a schema points to `$ref` definitions that aren't available, they're simplified to a generic object.
-- **Tuple-style arrays:** For schemas that define arrays with position-specific types, only the first item is used.
-- **Enums and formats:** Only string enums and a small set of formats are kept; others are dropped.
-- **Complex combinations:** `oneOf`/`allOf` are simplified, which may loosen or slightly change validation rules.
+- Unresolved references are simplified to generic object schemas.
+- Tuple-style arrays keep only the first item schema.
+- Non-string enum values are dropped.
+- Complex `oneOf` / `allOf` schemas may be simplified, which can loosen validation.
 
-These adjustments keep most MCP tools working, but rare edge cases could behave differently from the original schema.
-Please report issues you encounter using [Issue](https://github.com/hideya/langchain-google-genai-ex/issues).
+These adjustments keep most MCP tools working, but rare edge cases could behave differently
+from the original schema. Please report issues at
+[GitHub Issues](https://github.com/hideya/langchain-google-ex/issues).
 
-See [this design decision document](./DESIGN_DECISIONS.md) for the implementation details.
+See [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md) for implementation details.
 
 ## API Reference
 
-Can be found [here](https://hideya.github.io//langchain-google-genai-ex/classes/ChatGoogleGenerativeAIEx.html)
+[API Reference](https://hideya.github.io/langchain-google-ex/classes/ChatGoogleEx.html)
 
 ## Change Log
 
-Can be found [here](https://github.com/hideya/langchain-google-genai-ex/blob/main/CHANGELOG.md)
-
-## Links
-
-- [A simple usage example](https://github.com/hideya/langchain-google-genai-ex-usage) which is ready to clone and run
-- [Design decision document](./DESIGN_DECISIONS.md) describes the implementation details
+[CHANGELOG.md](https://github.com/hideya/langchain-google-ex/blob/main/CHANGELOG.md)
 
 ## License
 
 [MIT](./LICENSE)
-
-## Contributing
-
-Issues and pull requests welcome!  
-In particular, please share any issues relating to the latest versions of LLM models and specific MCP servers.  
-This tool aims to make MCP server testing as simple as possible.

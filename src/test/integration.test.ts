@@ -1,14 +1,14 @@
 import "dotenv/config";
-import { ChatGoogleGenerativeAIEx } from "../index.js";
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
-import { createAgent, HumanMessage } from "langchain";
+import { ChatGoogleEx } from "../index.js";
+import { ChatGoogle } from "@langchain/google/node";
+import { createAgent } from "langchain";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 
 // const MODEL_NAME = "gemini-2.5-flash";
 const MODEL_NAME = "gemini-3.5-flash";
 
 // Uncomment the following to enable verbose logging
-process.env.LANGCHAIN_GOOGLE_GENAI_EX_VERBOSE = "true";
+process.env.LANGCHAIN_GOOGLE_EX_VERBOSE = "true";
 
 // Create MCP client and connect to servers
 const client = new MultiServerMCPClient({
@@ -64,8 +64,8 @@ const queries = [
 (async () => {
   const mcpTools = await client.getTools();
 
-  const model = new ChatGoogleGenerativeAIEx({model: MODEL_NAME});
-  // const model = new ChatGoogleGenerativeAI({model: MODEL_NAME});
+  const model = new ChatGoogleEx({ model: MODEL_NAME });
+  // const model = new ChatGoogle({ model: MODEL_NAME });
 
   const agent = createAgent({ model, tools: mcpTools });
 
@@ -74,9 +74,15 @@ const queries = [
     console.log("[Q]", query);
     console.log("\x1b[0m");  // reset the color
 
-    const messages =  { messages: [new HumanMessage(query)] };
-    const result = await agent.invoke(messages);
-    const response = result.messages[result.messages.length - 1].content;
+    const result = await agent.invoke({
+      messages: [
+        {
+          role: "user",
+          content: query,
+        },
+      ],
+    });
+    const response = result.messages.at(-1)?.content;
 
     console.log("\x1b[36m");  // color to cyan
     console.log("[A]", response);

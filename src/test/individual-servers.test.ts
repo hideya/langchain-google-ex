@@ -1,7 +1,7 @@
 import "dotenv/config";
-import { ChatGoogleGenerativeAIEx } from "../index.js";
-import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { createAgent, HumanMessage } from "langchain";
+import { ChatGoogleEx } from "../index.js";
+import { ChatGoogle } from "@langchain/google/node";
+import { createAgent } from "langchain";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 
 // Configure which LLM models to test
@@ -9,14 +9,14 @@ const LLM_MODELS_TO_TEST = ["gemini-2.5-flash", "gemini-3.5-flash"];
 // const LLM_MODELS_TO_TEST = ["gemini-2.5-flash"]; // Single model for quick testing
 
 // Uncomment the following to enable verbose logging
-process.env.LANGCHAIN_GOOGLE_GENAI_EX_VERBOSE = "true";
+process.env.LANGCHAIN_GOOGLE_EX_VERBOSE = "true";
 
 /**
  * Individual MCP Server Integration Test
  * 
  * This test suite tests each of the MCP servers individually with two approaches:
- * 1. Original ChatGoogleGenerativeAI (baseline)
- * 2. Automatic transformation with ChatGoogleGenerativeAIEx
+ * 1. Original ChatGoogle (baseline)
+ * 2. Automatic transformation with ChatGoogleEx
  * 
  * Servers tested:
  * 1. us-weather: Weather information for US locations (sanity check)
@@ -25,7 +25,7 @@ process.env.LANGCHAIN_GOOGLE_GENAI_EX_VERBOSE = "true";
  * 4. github: GitHub API integration (sanity check)
  * 
  * Each server is tested independently to isolate success/failure cases
- * and compare the effectiveness of the ChatGoogleGenerativeAIEx solution.
+ * and compare the effectiveness of the ChatGoogleEx solution.
  */
 
 interface ServerTestConfig {
@@ -115,8 +115,8 @@ interface TestResult {
 /**
  * Tests a single MCP server for basic connectivity and functionality
  * Compares two approaches:
- * 1. Original ChatGoogleGenerativeAI (baseline)
- * 2. Automatic transformation with ChatGoogleGenerativeAIEx
+ * 1. Original ChatGoogle (baseline)
+ * 2. Automatic transformation with ChatGoogleEx
  */
 async function testSingleServer(serverConfig: ServerTestConfig, llmModel: string): Promise<TestResult> {
   const result: TestResult = {
@@ -172,19 +172,23 @@ async function testSingleServer(serverConfig: ServerTestConfig, llmModel: string
       }
     }
 
-    // Test with original ChatGoogleGenerativeAI first
-    console.log(`  🔄 Testing original ChatGoogleGenerativeAI (${llmModel})...`);
+    // Test with original ChatGoogle first
+    console.log(`  🔄 Testing original ChatGoogle (${llmModel})...`);
     try {
-      const originalLlm = new ChatGoogleGenerativeAI({ model: llmModel });
+      const originalLlm = new ChatGoogle({ model: llmModel });
       const originalAgent = createAgent({ model: originalLlm, tools: mcpTools });
       
       const originalResult = await originalAgent.invoke({
-        messages: [new HumanMessage(serverConfig.testQuery)]
+        messages: [
+          {
+            role: "user",
+            content: serverConfig.testQuery,
+          },
+        ],
       });
       
-      const originalResponse = originalResult.messages[originalResult.messages.length - 1].content;
+      const originalResponse = originalResult.messages.at(-1)?.content;
       result.originalSuccess = true;
-      let trimmedOriginalResponce = originalResponse;
       console.log(`  ✅ Original succeeded: \x1b[36m${String(originalResponse).substring(0, 200)}...\x1b[0m`);
     } catch (originalError: any) {
       result.originalSuccess = false;
@@ -192,19 +196,24 @@ async function testSingleServer(serverConfig: ServerTestConfig, llmModel: string
       console.log(`  ❌ Original failed: \x1b[35m${String(originalError).substring(0, 400)}...\x1b[0m`);
     }
 
-    // Test with ChatGoogleGenerativeAIEx (automatic transformation)
-    console.log(`  🚀 Testing automatic transformation (ChatGoogleGenerativeAIEx) (${llmModel})...`);
+    // Test with ChatGoogleEx (automatic transformation)
+    console.log(`  🚀 Testing automatic transformation (ChatGoogleEx) (${llmModel})...`);
     try {
-      const automaticLlm = new ChatGoogleGenerativeAIEx({ model: llmModel });
+      const automaticLlm = new ChatGoogleEx({ model: llmModel });
       const automaticAgent = createAgent({ model: automaticLlm, tools: mcpTools });
       
       console.log(`  💬 Query: "${serverConfig.testQuery}"`);
       
       const automaticResult = await automaticAgent.invoke({
-        messages: [new HumanMessage(serverConfig.testQuery)]
+        messages: [
+          {
+            role: "user",
+            content: serverConfig.testQuery,
+          },
+        ],
       });
       
-      const response = automaticResult.messages[automaticResult.messages.length - 1].content;
+      const response = automaticResult.messages.at(-1)?.content;
       result.automaticSuccess = true;
       result.responsePreview = String(response).substring(0, 150) + "...";
       result.success = true; // Overall success if automatic version works
@@ -220,17 +229,17 @@ async function testSingleServer(serverConfig: ServerTestConfig, llmModel: string
     // Show comparison result
     const originalStatus = result.originalSuccess ? "✅" : "❌";
     const automaticStatus = result.automaticSuccess ? "✅" : "❌";
-    console.log(`  🆚 Comparison: Original ${originalStatus} | ChatGoogleGenerativeAIEx ${automaticStatus}`);
+    console.log(`  🆚 Comparison: Original ${originalStatus} | ChatGoogleEx ${automaticStatus}`);
     
     // Analyze the results
     if (!result.originalSuccess && result.automaticSuccess) {
-      console.log(`  🎯 Schema fix benefit: ChatGoogleGenerativeAIEx fixed compatibility issues!`);
+      console.log(`  🎯 Schema fix benefit: ChatGoogleEx fixed compatibility issues!`);
     } else if (result.originalSuccess && result.automaticSuccess) {
       console.log(`  ✨ No schema issues: Both approaches work (simple schema)`);
     } else if (!result.originalSuccess && !result.automaticSuccess) {
       console.log(`  ⚠️  Both approaches failed: Likely server/network issue, not schema-related`);
     } else if (result.originalSuccess && !result.automaticSuccess) {
-      console.log(`  🔴 Regression: Original works but ChatGoogleGenerativeAIEx broke something`);
+      console.log(`  🔴 Regression: Original works but ChatGoogleEx broke something`);
     }
 
   } catch (error: any) {
@@ -255,7 +264,7 @@ async function testSingleServer(serverConfig: ServerTestConfig, llmModel: string
 function printSummaryTable(results: TestResult[], llmModel: string) {
   console.log(`\n📊 Test Results Summary - ${llmModel}`);
   console.log("═".repeat(110));
-  console.log("Server          | Original | ChatGoogleGenAIEx | Tools | Schema Fix Benefit     | Notes");
+  console.log("Server          | Original | ChatGoogleEx       | Tools | Schema Fix Benefit     | Notes");
   console.log("─".repeat(110));
 
   for (const result of results) {
@@ -333,15 +342,15 @@ async function runIndividualServerTestsForModel(llmModel: string) {
   console.log(`\n📈 Statistics:`);
   console.log(`   Total Servers: ${totalTests}`);
   console.log(`   Available for Testing: ${availableTests}`);
-  console.log(`   ✅ Original ChatGoogleGenerativeAI: ${originalPassedTests}/${availableTests} (${((originalPassedTests/availableTests)*100).toFixed(1)}%)`);
-  console.log(`   ✅ ChatGoogleGenerativeAIEx: ${automaticPassedTests}/${availableTests} (${((automaticPassedTests/availableTests)*100).toFixed(1)}%)`);
+  console.log(`   ✅ Original ChatGoogle: ${originalPassedTests}/${availableTests} (${((originalPassedTests/availableTests)*100).toFixed(1)}%)`);
+  console.log(`   ✅ ChatGoogleEx: ${automaticPassedTests}/${availableTests} (${((automaticPassedTests/availableTests)*100).toFixed(1)}%)`);
   console.log(`   🎯 Schema Issues Fixed: ${schemaFixedTests} servers`);
   console.log(`   ⏸️  Skipped (missing auth): ${skippedTests}`);
   console.log(`   ❌ Both Failed: ${allFailedTests}`);
   console.log(`   🔴 Regressions: ${regressionTests}`);
 
   if (schemaFixedTests > 0) {
-    console.log(`\n🎉 Success! ChatGoogleGenerativeAIEx fixed compatibility issues for ${schemaFixedTests} servers!`);
+    console.log(`\n🎉 Success! ChatGoogleEx fixed compatibility issues for ${schemaFixedTests} servers!`);
     
     const schemaFixedServers = results
       .filter(r => !r.skipped && !r.originalSuccess && r.automaticSuccess)
@@ -382,11 +391,11 @@ async function runIndividualServerTestsForModel(llmModel: string) {
   console.log(`\n✅ Schema compatibility testing complete for ${llmModel}!`);
   
   if (schemaFixedTests > 0) {
-    console.log(`🎆 Result: Successfully demonstrated ChatGoogleGenerativeAIEx benefits with ${schemaFixedTests} complex MCP servers!`);
+    console.log(`🎆 Result: Successfully demonstrated ChatGoogleEx benefits with ${schemaFixedTests} complex MCP servers!`);
   }
   
   if (regressionTests === 0 && automaticPassedTests >= originalPassedTests) {
-    console.log(`💯 Perfect: ChatGoogleGenerativeAIEx maintains or improves compatibility without regressions!`);
+    console.log(`💯 Perfect: ChatGoogleEx maintains or improves compatibility without regressions!`);
   }
   
   return results;
@@ -444,7 +453,7 @@ async function runIndividualServerTests() {
     
     console.log(`📊 ${model}:`);
     console.log(`   Original: ${originalPassedTests}/${availableTests} (${originalSuccessRate}%)`);
-    console.log(`   ChatGoogleGenerativeAIEx: ${automaticPassedTests}/${availableTests} (${automaticSuccessRate}%)`);
+    console.log(`   ChatGoogleEx: ${automaticPassedTests}/${availableTests} (${automaticSuccessRate}%)`);
     if (schemaFixedTests > 0) {
       console.log(`   🎯 Schema fixes: ${schemaFixedTests} servers`);
     }

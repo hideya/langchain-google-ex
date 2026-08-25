@@ -1,18 +1,18 @@
 {
-  "name": "@h1deya/langchain-google-genai-ex",
-  "version": "0.2.1",
-  "description": "Drop-in replacement for ChatGoogleGenerativeAI that automatically fixes schema compatibility issues with MCP tools and Gemini API",
+  "name": "@h1deya/langchain-google-ex",
+  "version": "0.1.0",
+  "description": "Drop-in replacement for ChatGoogle that automatically fixes schema compatibility issues with MCP tools and Gemini API",
   "keywords": [
     "langchain",
     "google",
     "gemini",
-    "GoogleGenerativeAI",
+    "ChatGoogle",
     "model context protocol",
     "mcp",
     "tools",
     "function calling",
     "schema",
-    "varidation",
+    "validation",
     "error",
     "400 Error",
     "llm",
@@ -22,12 +22,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hideya/langchain-google-genai-ex.git"
+    "url": "git+https://github.com/hideya/langchain-google-ex.git"
   },
   "bugs": {
-    "url": "https://github.com/hideya/langchain-google-genai-ex/issues"
+    "url": "https://github.com/hideya/langchain-google-ex/issues"
   },
-  "homepage": "https://github.com/hideya/langchain-google-genai-ex#readme",
+  "homepage": "https://github.com/hideya/langchain-google-ex#readme",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
@@ -69,10 +69,11 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "@langchain/google-genai": ">=0.2.16 <3"
+    "@langchain/google": ">=0.2.3 <1"
   },
   "devDependencies": {
-    "@langchain/google-genai": "^2.3.0",
+    "@langchain/core": "^1.2.9",
+    "@langchain/google": "^0.2.3",
     "@langchain/mcp-adapters": "^1.1.4",
     "@types/node": "^22.20.1",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
@@ -86,7 +87,7 @@
     "typescript": "^5.5.0"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   },
   "publishConfig": {
     "access": "public"

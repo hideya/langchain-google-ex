@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { ChatGoogleGenerativeAIEx } from "../index.js";
+import { ChatGoogleEx } from "../index.js";
 import {
   makeJsonSchemaGeminiCompatible,
   transformMcpToolsForGemini,
@@ -113,7 +113,7 @@ assert.equal(transformedTools[0].name, "fetch");
 assert.deepEqual(validateGeminiSchema(transformedTools[0].schema), []);
 assert.deepEqual(transformedTools[0].schema, transformResult.schema);
 
-const model = new ChatGoogleGenerativeAIEx({
+const model = new ChatGoogleEx({
   model: "gemini-2.5-flash",
   apiKey: "test-api-key",
 });

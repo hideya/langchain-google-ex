@@ -8,8 +8,8 @@
   "excludeExternals": false,
   "includeVersion": true,
   "navigationLinks": {
-    "GitHub": "https://github.com/hideya/langchain-google-genai-ex",
-    "NPM": "https://www.npmjs.com/package/@h1deya/langchain-google-genai-ex"
+    "GitHub": "https://github.com/hideya/langchain-google-ex",
+    "NPM": "https://www.npmjs.com/package/@h1deya/langchain-google-ex"
   },
   "plugin": [],
   "githubPages": true,
@@ -24,9 +24,9 @@
   "searchInComments": true,
   "categorizeByGroup": true,
   "categoryOrder": [
-    "Main",           // ChatGoogleGenerativeAIEx
-    "Schema Utils",   // transformMcpToolForGemini, etc.
-    "Types",          // JsonSchemaDraft7, etc.
+    "Main",           // ChatGoogleEx
+    "Schema Utils",   // internal schema helpers
+    "Types",          // internal schema types
     "*"
   ]
 }
