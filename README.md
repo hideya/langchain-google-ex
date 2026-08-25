@@ -1,22 +1,25 @@
-# Fix Gemini "400 Error" with LangChain.js + MCP [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/hideya/langchain-google-ex/blob/main/LICENSE) [![npm version](https://img.shields.io/npm/v/@h1deya/langchain-google-ex.svg)](https://www.npmjs.com/package/@h1deya/langchain-google-ex)
+# Fix Gemini schema errors with LangChain.js + MCP [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/hideya/langchain-google-ex/blob/main/LICENSE) [![npm version](https://img.shields.io/npm/v/@h1deya/langchain-google-ex.svg)](https://www.npmjs.com/package/@h1deya/langchain-google-ex)
 
 ### Drop-in replacement that unblocks MCP tool schemas in Gemini
 
 This library provides **a drop-in replacement for `ChatGoogle` from `@langchain/google`**
-that fixes Gemini 400 Bad Request errors when using LangChain.js with MCP servers.
-It automatically transforms JSON schemas with unsupported constructs into Gemini-compatible
-function-calling schemas at tool binding time.
+that fixes Gemini function-calling schema errors when using LangChain.js with MCP servers.
+It automatically transforms MCP tool schemas with unsupported constructs into
+Gemini-compatible function-calling schemas at tool binding time.
 
-The schema error usually looks like:
+The schema error usually appears as either a Gemini API request error:
 
 ```text
-Invalid JSON payload received. Unknown name "exclusiveMaximum" ...
+RequestError: Invalid JSON payload received.
+Unknown name "exclusiveMaximum" ...
+Unknown name "exclusiveMinimum" ...
 ```
 
-or:
+or a LangChain-side schema validation error before the request is sent:
 
 ```text
-Invalid JSON payload received. Unknown name "anyOf" ...
+InvalidInputError: Gemini does not support union types in function schemas.
+Use a single type instead.
 ```
 
 This commonly appears when tools from `MultiServerMCPClient` include schemas that are valid
@@ -49,6 +52,18 @@ const agent = createAgent({ model, tools: mcpTools });
 
 `ChatGoogleEx` transforms the tool schemas inside `bindTools()`, preserving the original
 LangChain tool objects and their execution behavior.
+
+When using a Google AI Studio / Gemini Developer API key, pass it explicitly:
+
+```typescript
+const model = new ChatGoogleEx({
+  model: "gemini-2.5-flash",
+  apiKey: process.env.GOOGLE_API_KEY,
+});
+```
+
+This avoids accidentally falling back to Vertex AI / Google Cloud authentication when the
+environment is not configured the way `@langchain/google` expects.
 
 ## Prerequisites
 
@@ -88,7 +103,10 @@ const client = new MultiServerMCPClient({
 
 try {
   const mcpTools = await client.getTools();
-  const model = new ChatGoogleEx({ model: "gemini-2.5-flash" });
+  const model = new ChatGoogleEx({
+    model: "gemini-2.5-flash",
+    apiKey: process.env.GOOGLE_API_KEY,
+  });
   const agent = createAgent({ model, tools: mcpTools });
 
   const result = await agent.invoke({
@@ -110,8 +128,8 @@ try {
 
 Gemini's function-calling schema format accepts only a subset of JSON Schema. Some MCP
 servers publish schemas containing fields such as `exclusiveMinimum`, `exclusiveMaximum`,
-`additionalProperties`, or complex `anyOf` / `oneOf` / `allOf` combinations. Those schemas
-can be rejected before any tool call runs.
+`propertyNames`, `additionalProperties`, or complex union shapes. Those schemas can be
+rejected before any tool call runs.
 
 `@langchain/google` already performs some schema normalization, but current versions still
 pass through schema keywords that Gemini rejects in MCP tool definitions. `ChatGoogleEx`
@@ -121,7 +139,12 @@ MCP servers that have shown this kind of issue include:
 
 - `airtable-mcp-server`
 - `mcp-server-fetch==2025.4.7`
+- GitHub Copilot MCP server
 - `@notionhq/notion-mcp-server`
+
+In local integration tests, simple schemas such as a weather MCP server worked with both
+`ChatGoogle` and `ChatGoogleEx`. More complex schemas from Fetch, Airtable, and GitHub
+failed with `ChatGoogle` and succeeded with `ChatGoogleEx`.
 
 ## Debugging: Verbose Logging
 

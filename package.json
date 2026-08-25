@@ -1,6 +1,6 @@
 {
   "name": "@h1deya/langchain-google-ex",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Drop-in replacement for ChatGoogle that automatically fixes schema compatibility issues with MCP tools and Gemini API",
   "keywords": [
     "langchain",
@@ -14,7 +14,7 @@
     "schema",
     "validation",
     "error",
-    "400 Error",
+    "schema error",
     "llm",
     "typescript"
   ],

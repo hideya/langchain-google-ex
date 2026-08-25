@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-26
+
+### Changed
+- Document the `@langchain/google` error patterns observed in integration tests, including
+  `RequestError` invalid JSON payload failures and `InvalidInputError` union-type failures.
+- Document explicit `apiKey: process.env.GOOGLE_API_KEY` usage in the README examples
+  to avoid accidentally falling back to Vertex AI / Google Cloud authentication.
+
 
 ## [0.1.0] - 2026-08-26
 

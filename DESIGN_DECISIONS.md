@@ -15,20 +15,28 @@ We chose **Option B** as the public API.
 ## The Problem We're Solving
 
 Gemini function calling accepts only a subset of JSON Schema. MCP servers may publish tool
-schemas containing fields such as `anyOf`, `oneOf`, `allOf`, `exclusiveMinimum`,
-`exclusiveMaximum`, unsupported `format` values, or invalid `required` entries.
+schemas containing fields such as `exclusiveMinimum`, `exclusiveMaximum`, `propertyNames`,
+`additionalProperties`, union types, unsupported `format` values, or invalid `required`
+entries.
 
-Those schemas can produce errors such as:
-
-```text
-Invalid JSON payload received. Unknown name "exclusiveMaximum" ...
-```
-
-or:
+With `@langchain/google`, those schemas can produce Gemini API request errors such as:
 
 ```text
-Invalid JSON payload received. Unknown name "anyOf" ...
+RequestError: Invalid JSON payload received.
+Unknown name "exclusiveMaximum" ...
+Unknown name "exclusiveMinimum" ...
 ```
+
+or LangChain-side validation errors such as:
+
+```text
+InvalidInputError: Gemini does not support union types in function schemas.
+Use a single type instead.
+```
+
+In integration testing, simple weather tools worked with both `ChatGoogle` and
+`ChatGoogleEx`, while Fetch, Airtable, and GitHub MCP tool schemas failed with `ChatGoogle`
+and succeeded after `ChatGoogleEx` transformed the schemas.
 
 ## Why Transforming Inside `bindTools()` Works Best
 
