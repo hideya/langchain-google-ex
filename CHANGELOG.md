@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+- Expand the public `ChatGoogleEx` API comments with concise constructor and
+  `bindTools()` behavior notes.
+
+
 ## [0.1.1] - 2026-08-26
 
 ### Changed
