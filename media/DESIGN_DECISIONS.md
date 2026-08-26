@@ -2,178 +2,85 @@
 
 ## Summary
 
-During the development of `@h1deya/langchain-google-genai-ex`, we extensively evaluated two approaches for solving Gemini schema compatibility issues with MCP tools:
+`@h1deya/langchain-google-ex` solves Gemini schema compatibility issues for MCP tools
+used with `ChatGoogle` from `@langchain/google`.
 
-- **Option A**: Explicit transformation function (`transformMcpToolsForGemini()`)
-- **Option B**: Drop-in replacement class (`ChatGoogleGenerativeAIEx`)
+We evaluated two approaches:
 
-After technical analysis and testing, we chose **Option B** as the sole API. This document explains the technical reasoning behind this decision.
+- **Option A**: expose an explicit `transformMcpToolsForGemini()` utility
+- **Option B**: expose a drop-in replacement class, `ChatGoogleEx`
+
+We chose **Option B** as the public API.
 
 ## The Problem We're Solving
 
-Google Gemini has strict schema requirements for function calling that reject valid MCP tool schemas containing fields like `anyOf`, `exclusiveMaximum`, etc. This causes errors like:
+Gemini function calling accepts only a subset of JSON Schema. MCP servers may publish tool
+schemas containing fields such as `exclusiveMinimum`, `exclusiveMaximum`, `propertyNames`,
+`additionalProperties`, union types, unsupported `format` values, or invalid `required`
+entries.
 
+With `@langchain/google`, those schemas can produce Gemini API request errors such as:
+
+```text
+RequestError: Invalid JSON payload received.
+Unknown name "exclusiveMaximum" ...
+Unknown name "exclusiveMinimum" ...
 ```
-[GoogleGenerativeAI Error]: [400 Bad Request] Invalid JSON payload received. 
-Unknown name "anyOf" at 'tools[0].function_declarations[8].parameters.properties[2]...'
+
+or LangChain-side validation errors such as:
+
+```text
+InvalidInputError: Gemini does not support union types in function schemas.
+Use a single type instead.
 ```
 
-## Initial Approach Evaluation
+In integration testing, simple weather tools worked with both `ChatGoogle` and
+`ChatGoogleEx`, while Fetch, Airtable, and GitHub MCP tool schemas failed with `ChatGoogle`
+and succeeded after `ChatGoogleEx` transformed the schemas.
 
-### Option A: Explicit Transformation Function
+## Why Transforming Inside `bindTools()` Works Best
+
+LangChain agents keep tool objects as more than raw schemas. A tool object also carries its
+name, description, invocation behavior, lifecycle metadata, and runtime state. Transforming
+too early risks replacing or reshaping the tool object before LangChain has finished its own
+processing.
+
+With a drop-in model class, users keep writing normal LangChain code:
 
 ```typescript
-import { transformMcpToolsForGemini } from '@h1deya/langchain-google-genai-ex';
-import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
+import { ChatGoogleEx } from "@h1deya/langchain-google-ex";
+import { createAgent } from "langchain";
 
 const mcpTools = await client.getTools();
-const transformedTools = transformMcpToolsForGemini(mcpTools);
-const llm = new ChatGoogleGenerativeAI({ model: "gemini-1.5-flash" });
-const agent = createReactAgent({ llm, tools: transformedTools });
+const model = new ChatGoogleEx({ model: "gemini-2.5-flash" });
+const agent = createAgent({ model, tools: mcpTools });
 ```
 
-**Perceived Benefits:**
-- Explicit control over transformation
-- Works with standard `ChatGoogleGenerativeAI`
-- Pragmatic programming approach
-- Easy to test transformation in isolation
-
-### Option B: Drop-in Replacement Class
+The transformation happens only when LangChain calls:
 
 ```typescript
-import { ChatGoogleGenerativeAIEx } from '@h1deya/langchain-google-genai-ex';
-
-const mcpTools = await client.getTools();
-const llm = new ChatGoogleGenerativeAIEx({ model: "gemini-1.5-flash" });
-const agent = createReactAgent({ llm, tools: mcpTools }); // Auto-transformed
+model.bindTools(mcpTools);
 ```
 
-**Perceived Benefits:**
-- Drop-in replacement
-- Low risk for misuse
-- Clean API surface
-- Preserves all original functionality
+That timing preserves LangChain's normal tool lifecycle while adapting the final schemas
+sent to Gemini.
 
-## Technical Investigation: LangChain's Tool Binding Process
+## Public API
 
-To understand which approach was architecturally sound, we analyzed LangChain's internal implementation:
-
-### How `createReactAgent()` Works
-
-Since the failed tests used `createReactAgent()` of LangGraph, its implementation was investigated.
-
-From `node_modules/@langchain/langgraph/dist/prebuilt/react_agent_executor.js`:
+The package intentionally exports only:
 
 ```typescript
-const getModelRunnable = async (llm) => {
-    // ...
-    let modelWithTools;
-    if (await _shouldBindTools(llm, toolClasses)) {
-        modelWithTools = llm.bindTools(toolClasses);  // ← Critical point
-    }
-    // ...
-};
+import { ChatGoogleEx } from "@h1deya/langchain-google-ex";
 ```
 
-`createReactAgent()` internally calls `llm.bindTools(toolClasses)` with the tools passed to it.
-
-For more information about `bindTools()`, 
-see [this official **"Tool calling"** document](https://js.langchain.com/docs/concepts/tool_calling/).
-
-### The Tool Lifecycle Problem
-
-#### Option A's Fatal Flaw: Premature Transformation
-
-1. **User transforms tools**: `transformMcpToolsForGemini(mcpTools)` → `transformedTools`
-2. **User passes to agent**: `createReactAgent({ llm, tools: transformedTools })`
-3. **LangChain seems to processes tools**: Internal metadata, validation, etc.
-4. **LangChain calls**: `llm.bindTools(transformedTools)` (fixed tools + internal process)
-5. **Result**: Tool execution context is broken
-
-Although this fixes the 400 Bad Request caused by schema incompatibilities,
-it fails to execute properly:
-
-**Test Result**: 
-
-```
-Unfortunately, I'm unable to access information about your Notion account 
-at this time due to an error with the tool.invoke function.
-```
-
-#### Option B's Success: Transform at Binding Time
-
-1. **User passes original tools**: `createReactAgent({ llm, tools: mcpTools })`
-2. **LangChain processes tools**: All internal processing complete
-3. **LangChain calls**: `llm.bindTools(mcpTools)` (original tools + internal process)
-4. **ChatGoogleGenerativeAIEx.bindTools()**: 
-   ```typescript
-   override bindTools(tools: any[], kwargs?: Partial<GoogleGenerativeAIChatCallOptions>) {
-     const transformedTools = transformMcpToolsForGemini(tools);
-     return super.bindTools(transformedTools, kwargs);
-   }
-   ```
-5. **Result**: Schema transformed at exactly the desired moment
-
-This approach works fine.
-
-**Test Result**:
-```
-Your Notion account is linked to the email address ..., 
-and your username is ...
-```
-
-### Simplified Comparision of the Transformation Timing
-
-**Option A**
-
-```
-  User Code --→ LangChain Processing --→ LLM Binding
-             ↑
-     <Transform Tools>
-        Too Early!
-```
-
-**Option B**
-
-```
-  User Code --→ LangChain Processing --→ LLM Binding
-                                      ↑
-                              <Transform Tools>
-                               Desiered Timing!
-```
-
-### The LangChain Tool Object Structure
-
-LangChain tools aren't just schemas - they're complex objects with:
-
-```typescript
-{
-  name: "notion_get_user_info",
-  description: "Get information about the current user",
-  schema: { /* JSON Schema */ },
-  // LangChain-specific metadata:
-  lc: { /* LangChain lifecycle info */ },
-  type: "tool",
-  id: ["langchain", "tools", "base"],
-  // Execution context:
-  invoke: function() { /* actual tool execution */ },
-  // Internal state and references
-}
-```
-
-Early transformation seems to interfere with LangChain's internal tool processing, breaking the execution context that tools need to function.
-
-## Final Decision: Option B Only
-
-We decided to **drop Option A entirely** because it was difficult to make it work reliably.
-
+The schema adapter remains internal. This keeps the package focused on the supported
+drop-in replacement workflow and avoids encouraging premature manual transformation.
 
 ## Conclusion
 
-By choosing the drop-in replacement approach, we created a library that:
-- **Solves the problem** without breaking tool execution
-- **Requires no configuration** from users
-- **Is more robust against future changes** in LangChain's internals
-- **Has a clean, obvious API** that is hardly susceptible to misuse
+The drop-in replacement approach:
 
----
+- fixes Gemini schema rejection without changing application structure
+- preserves MCP tool execution behavior
+- keeps migration reversible when upstream schema handling improves
+- keeps the package API small and hard to misuse
