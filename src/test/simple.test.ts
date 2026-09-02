@@ -1,124 +1,43 @@
-import assert from "node:assert/strict";
+import "dotenv/config";
+// import { ChatGoogle } from "@langchain/google/node";
+// import { ChatGoogleEx } from "@h1deya/langchain-google-ex";
 import { ChatGoogleEx } from "../index.js";
-import {
-  makeJsonSchemaGeminiCompatible,
-  transformMcpToolsForGemini,
-  validateGeminiSchema,
-} from "../schema-adapter-gemini.js";
-import type { JsonSchemaDraft7 } from "../schema-adapter-types.js";
+import { createAgent } from "langchain";
+import { MultiServerMCPClient } from "@langchain/mcp-adapters";
 
-const incompatibleSchema: JsonSchemaDraft7 = {
-  type: "object",
-  description: "Fetch a URL",
-  properties: {
-    url: {
-      type: ["string", "null"],
-      format: "uri",
-      description: "URL to fetch",
-    },
-    limit: {
-      type: "integer",
-      exclusiveMinimum: 0,
-      exclusiveMaximum: 10,
-    },
-    output: {
-      type: "object",
-      description: "Output format",
-      properties: {
-        mode: {
-          anyOf: [
-            { type: "string", enum: ["raw", "html"] },
-            {
-              type: "object",
-              required: ["missing"],
-              properties: {
-                selector: { type: "string" },
-              },
-            },
-          ],
-          description: "Output mode",
-        },
-      },
-      required: ["mode", "missing"],
+const client = new MultiServerMCPClient({
+  throwOnLoadError: true,
+  useStandardContentBlocks: true,
+  mcpServers: {
+    fetch: {
+      transport: "stdio",
+      command: "uvx",
+      args: ["--with", "mcp<2", "mcp-server-fetch==2025.4.7"],
     },
   },
-  required: ["url", "missing"],
-  additionalProperties: false,
-};
-
-const transformResult = makeJsonSchemaGeminiCompatible(incompatibleSchema);
-assert.equal(transformResult.wasTransformed, true);
-assert.match(transformResult.changesSummary, /type array/);
-assert.match(transformResult.changesSummary, /exclusive bound/);
-assert.match(transformResult.changesSummary, /unsupported format/);
-
-const validationErrors = validateGeminiSchema(transformResult.schema);
-assert.deepEqual(validationErrors, []);
-
-assert.deepEqual(transformResult.schema, {
-  type: "object",
-  description: "Fetch a URL",
-  properties: {
-    url: {
-      type: "string",
-      description: "URL to fetch",
-      nullable: true,
-    },
-    limit: {
-      type: "integer",
-      minimum: 1,
-      maximum: 9,
-    },
-    output: {
-      type: "object",
-      description: "Output format",
-      properties: {
-        mode: {
-          anyOf: [
-            {
-              type: "string",
-              enum: ["raw", "html"],
-              description: "Output mode",
-            },
-            {
-              type: "object",
-              properties: {
-                selector: {
-                  type: "string",
-                },
-              },
-              description: "Output mode",
-            },
-          ],
-        },
-      },
-      required: ["mode"],
-    },
-  },
-  required: ["url"],
 });
 
-const mcpTools = [
-  {
-    name: "fetch",
-    description: "Fetch a URL",
-    schema: incompatibleSchema,
-  },
-];
+(async () => { // workaround for top-level await
+  try {
+    const mcpTools = await client.getTools();
+    // const model = new ChatGoogle({
+    const model = new ChatGoogleEx({
+      model: "gemini-3.5-flash",
+      apiKey: process.env.GOOGLE_API_KEY,
+    });
+    const agent = createAgent({ model, tools: mcpTools });
 
-const transformedTools = transformMcpToolsForGemini(mcpTools);
+    const result = await agent.invoke({
+      messages: [
+        {
+          role: "user",
+          content: "Fetch the raw HTML content from bbc.com and tell me the title",
+        },
+      ],
+    });
 
-assert.equal(transformedTools.length, 1);
-assert.equal(transformedTools[0].name, "fetch");
-assert.deepEqual(validateGeminiSchema(transformedTools[0].schema), []);
-assert.deepEqual(transformedTools[0].schema, transformResult.schema);
-
-const model = new ChatGoogleEx({
-  model: "gemini-2.5-flash",
-  apiKey: "test-api-key",
-});
-
-const boundModel = model.bindTools(mcpTools);
-assert.equal(typeof boundModel.invoke, "function");
-
-console.log("simple smoke test passed");
+    console.log(result.messages.at(-1)?.content);
+  } finally {
+    await client.close();
+  }
+})();

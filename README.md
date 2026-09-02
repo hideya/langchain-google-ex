@@ -32,7 +32,7 @@ Replace:
 ```typescript
 import { ChatGoogle } from "@langchain/google/node";
 
-const model = new ChatGoogle({ model: "gemini-2.5-flash" });
+const model = new ChatGoogle({ model: "gemini-3.5-flash" });
 ```
 
 with:
@@ -40,7 +40,7 @@ with:
 ```typescript
 import { ChatGoogleEx } from "@h1deya/langchain-google-ex";
 
-const model = new ChatGoogleEx({ model: "gemini-2.5-flash" });
+const model = new ChatGoogleEx({ model: "gemini-3.5-flash" });
 ```
 
 That's it. Keep passing the original MCP tools to LangChain:
@@ -57,13 +57,24 @@ When using a Google AI Studio / Gemini Developer API key, pass it explicitly:
 
 ```typescript
 const model = new ChatGoogleEx({
-  model: "gemini-2.5-flash",
+  model: "gemini-3.5-flash",
   apiKey: process.env.GOOGLE_API_KEY,
 });
 ```
 
 This avoids accidentally falling back to Vertex AI / Google Cloud authentication when the
 environment is not configured the way `@langchain/google` expects.
+
+A simple usage example, which is ready to clone and run, can be found
+[here](https://github.com/hideya/langchain-google-ex-usage).
+
+> This library is intentionally focused on `@langchain/google` users who need a
+> drop-in replacement for `ChatGoogleAI`. If you use `@langchain/google-genai`, see the companion
+> [`@h1deya/langchain-google-genai-ex`](https://www.npmjs.com/package/@h1deya/langchain-google-genai-ex)
+> package instead.
+>
+> This library addresses compatibility issues present as of August 25, 2026, with 
+> `langchain` v1.5.10, `@langchain/google` v0.2.3, and `@langchain/mcp-adapters` v1.1.4.
 
 ## Prerequisites
 
@@ -84,7 +95,7 @@ npm i @h1deya/langchain-google-ex @langchain/google langchain @langchain/mcp-ada
 ## Complete Usage Example
 
 ```typescript
-import "dotenv/config";
+// import { ChatGoogle } from "@langchain/google/node";
 import { ChatGoogleEx } from "@h1deya/langchain-google-ex";
 import { createAgent } from "langchain";
 import { MultiServerMCPClient } from "@langchain/mcp-adapters";
@@ -101,30 +112,36 @@ const client = new MultiServerMCPClient({
   },
 });
 
-try {
-  const mcpTools = await client.getTools();
-  const model = new ChatGoogleEx({
-    model: "gemini-2.5-flash",
-    apiKey: process.env.GOOGLE_API_KEY,
-  });
-  const agent = createAgent({ model, tools: mcpTools });
+(async () => { // workaround for top-level await
+  try {
+    const mcpTools = await client.getTools();
+    // const model = new ChatGoogle({
+    const model = new ChatGoogleEx({
+      model: "gemini-3.5-flash",
+      apiKey: process.env.GOOGLE_API_KEY,
+    });
+    const agent = createAgent({ model, tools: mcpTools });
 
-  const result = await agent.invoke({
-    messages: [
-      {
-        role: "user",
-        content: "Fetch the raw HTML content from bbc.com and tell me the title",
-      },
-    ],
-  });
+    const result = await agent.invoke({
+      messages: [
+        {
+          role: "user",
+          content: "Fetch the raw HTML content from bbc.com and tell me the title",
+        },
+      ],
+    });
 
-  console.log(result.messages.at(-1)?.content);
-} finally {
-  await client.close();
-}
+    console.log(result.messages.at(-1)?.content);
+  } finally {
+    await client.close();
+  }
+})();
 ```
 
-## Why This Happens
+A simple usage example, which is ready to clone and run, can be found
+[here](https://github.com/hideya/langchain-google-ex-usage).
+
+## Why The Error Happens
 
 Gemini's function-calling schema format accepts only a subset of JSON Schema. Some MCP
 servers publish schemas containing fields such as `exclusiveMinimum`, `exclusiveMaximum`,
@@ -193,6 +210,16 @@ See [DESIGN_DECISIONS.md](./DESIGN_DECISIONS.md) for implementation details.
 
 [CHANGELOG.md](https://github.com/hideya/langchain-google-ex/blob/main/CHANGELOG.md)
 
+## Links
+
+- [A simple usage example](https://github.com/hideya/langchain-google-ex-usage) which is ready to clone and run
+- [Design decision document](./DESIGN_DECISIONS.md) describes the implementation details
+
 ## License
 
 [MIT](./LICENSE)
+
+## Contributing
+
+Issues and pull requests welcome!  
+In particular, please share any issues relating to the latest versions of LLM models and specific MCP servers.  
