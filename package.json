@@ -70,7 +70,7 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "@langchain/google": ">=0.2.3 <1"
+    "@langchain/google": ">=0.2.3"
   },
   "devDependencies": {
     "@langchain/core": "^1.2.9",
