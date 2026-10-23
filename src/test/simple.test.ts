@@ -22,7 +22,7 @@ const client = new MultiServerMCPClient({
     const mcpTools = await client.getTools();
     // const model = new ChatGoogle({
     const model = new ChatGoogleEx({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.8-flash",
       apiKey: process.env.GOOGLE_API_KEY,
     });
     const agent = createAgent({ model, tools: mcpTools });

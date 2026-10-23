@@ -32,7 +32,7 @@ Replace:
 ```typescript
 import { ChatGoogle } from "@langchain/google/node";
 
-const model = new ChatGoogle({ model: "gemini-3.5-flash" });
+const model = new ChatGoogle({ model: "gemini-3.8-flash" });
 ```
 
 with:
@@ -40,7 +40,7 @@ with:
 ```typescript
 import { ChatGoogleEx } from "@h1deya/langchain-google-ex";
 
-const model = new ChatGoogleEx({ model: "gemini-3.5-flash" });
+const model = new ChatGoogleEx({ model: "gemini-3.8-flash" });
 ```
 
 That's it. Keep passing the original MCP tools to LangChain:
@@ -57,7 +57,7 @@ When using a Google AI Studio / Gemini Developer API key, pass it explicitly:
 
 ```typescript
 const model = new ChatGoogleEx({
-  model: "gemini-3.5-flash",
+  model: "gemini-3.8-flash",
   apiKey: process.env.GOOGLE_API_KEY,
 });
 ```
@@ -117,7 +117,7 @@ const client = new MultiServerMCPClient({
     const mcpTools = await client.getTools();
     // const model = new ChatGoogle({
     const model = new ChatGoogleEx({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.8-flash",
       apiKey: process.env.GOOGLE_API_KEY,
     });
     const agent = createAgent({ model, tools: mcpTools });
