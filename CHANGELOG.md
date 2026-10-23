@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ## [Unreleased]
 
 ### Changed
+- Update dependencies and resolve warnings
+
+
+### Changed
 - Relax peer dependency version requirement
 - Expand the public `ChatGoogleEx` API comments with concise constructor and
   `bindTools()` behavior notes.
